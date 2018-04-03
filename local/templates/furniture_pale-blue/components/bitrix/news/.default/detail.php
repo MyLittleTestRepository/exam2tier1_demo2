@@ -2,7 +2,7 @@
 <?$ElementID = $APPLICATION->IncludeComponent(
 	"bitrix:news.detail",
 	"",
-	Array(
+	Array('CANONICAL_ID' => $arParams['CANONICAL_ID'],
 		"DISPLAY_DATE" => $arParams["DISPLAY_DATE"],
 		"DISPLAY_NAME" => $arParams["DISPLAY_NAME"],
 		"DISPLAY_PICTURE" => $arParams["DISPLAY_PICTURE"],

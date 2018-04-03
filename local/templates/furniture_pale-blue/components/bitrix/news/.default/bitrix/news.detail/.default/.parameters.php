@@ -23,4 +23,9 @@ $arTemplateParameters = array(
 		"DEFAULT" => "Y",
 	),
 );
+
+$arTemplateParameters['CANONICAL_ID'] = ["PARENT"  => "BASE",
+                                         "NAME"    => GetMessage("CANONICAL_ID"),
+                                         "TYPE"    => "STRING",
+                                         "DEFAULT" => "5",];
 ?>
