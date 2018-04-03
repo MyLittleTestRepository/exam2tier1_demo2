@@ -5,7 +5,7 @@ $DBType = "mysql";
 $DBHost = "localhost";
 $DBLogin = "bitrix";
 $DBPassword = "password";
-$DBName = "exam2tier1_demo1";
+$DBName = "exam2tier1_demo2";
 $DBDebug = false;
 $DBDebugToFile = false;
 define("MYSQL_TABLE_TYPE", "INNODB");
