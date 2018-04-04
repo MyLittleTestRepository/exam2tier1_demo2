@@ -1,75 +1,129 @@
 <?
-if(!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED!==true) die();
+if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true)
+	die();
 
-use Bitrix\Main\Loader,
-	Bitrix\Iblock;
+/** @global CMain $APPLICATION */
+/** @global CUser $USER */
+/** @global CDatabase $DB */
+/** @var CBitrixComponent $this */
+/** @var array $arParams */
 
-if(!Loader::includeModule("iblock"))
+/** @var array $arResult */
+
+use Bitrix\Main\Loader;
+
+if (!Loader::includeModule('iblock'))
 {
-	ShowError(GetMessage("SIMPLECOMP_EXAM2_IBLOCK_MODULE_NONE"));
+	ShowError(GetMessage('SIMPLECOMP_EXAM2_IBLOCK_MODULE_NONE'));
 	return;
 }
 
-if(intval($arParams["PRODUCTS_IBLOCK_ID"]) > 0)
+if (!$USER->IsAuthorized())
+	return;
+
+$my_id = intval($USER->GetID());
+
+if ($this->startResultCache(false, $my_id))
 {
-	
-	//iblock elements
-	$arSelectElems = array (
-		"ID",
-		"IBLOCK_ID",
-		"NAME",
-	);
-	$arFilterElems = array (
-		"IBLOCK_ID" => $arParams["PRODUCTS_IBLOCK_ID"],
-		"ACTIVE" => "Y"
-	);
-	$arSortElems = array (
-			"NAME" => "ASC"
-	);
-	
-	$arResult["ELEMENTS"] = array();
-	$rsElements = CIBlockElement::GetList($arSortElems, $arFilterElems, false, false, $arSelectElems);
-	while($arElement = $rsElements->GetNext())
+	//фильтруем входные параметры
+	$arParams['UF_PROP_CODE'] = trim($arParams['UF_PROP_CODE']);
+	$arParams['NEWS_LINK_CODE'] = trim($arParams['NEWS_LINK_CODE']);
+	$arParams['NEWS_IBLOCK_ID'] = intval($arParams['NEWS_IBLOCK_ID']);
+
+	//проверяем
+	if (empty($arParams['UF_PROP_CODE']) or empty($arParams['NEWS_LINK_CODE']) or !$arParams['NEWS_IBLOCK_ID'])
 	{
-		$arResult["ELEMENTS"][] = $arElement;
+		$this->abortResultCache();
+		return;
 	}
-	
-	//iblock sections
-	$arSelectSect = array (
-			"ID",
-			"IBLOCK_ID",
-			"NAME",
-	);
-	$arFilterSect = array (
-			"IBLOCK_ID" => $arParams["PRODUCTS_IBLOCK_ID"],
-			"ACTIVE" => "Y"
-	);
-	$arSortSect = array (
-			"NAME" => "ASC"
-	);
-	
-	$arResult["SECTIONS"] = array();
-	$rsSections = CIBlockSection::GetList($arSortSect, $arFilterSect, false, $arSelectSect, false);
-	while($arSection = $rsSections->GetNext())
+
+	//получаем наш тип
+	$Res = CUser::GetList($by,
+	                      $order,
+	                      ['ID' => $my_id],
+	                      ['SELECT' => [$arParams['UF_PROP_CODE']],
+	                       'FIELDS' => ['ID']]);
+
+	if (!$Res->SelectedRowsCount()) //мы не являемся автором
 	{
-		$arResult["SECTIONS"][] = $arSection;
+		$this->abortResultCache();
+		return;
 	}
-		
-	// user
-	$arOrderUser = array("id");
-	$sortOrder = "asc";
-	$arFilterUser = array(
-		"ACTIVE" => "Y"
-	);
-	
-	$arResult["USERS"] = array();
-	$rsUsers = CUser::GetList($arOrderUser, $sortOrder, $arFilterUser); // выбираем пользователей
-	while($arUser = $rsUsers->GetNext())
+
+	$user = $Res->Fetch();
+
+	//найдем всех авторов нашего типа
+	$Res = CUser::GetList($by,
+	                      $order,
+	                      ['UF_AUTHOR_TYPE' => $user[$arParams['UF_PROP_CODE']],
+	                       'ACTIVE'         => 'Y'],
+	                      ['FIELDS' => ['ID', 'LOGIN']]);
+
+	if ($Res->SelectedRowsCount() < 2) //других авторов нет
 	{
-		$arResult["USERS"][] = $arUser;
-	}	
-	
-	
+		$this->abortResultCache();
+		return;
+	}
+
+	while ($user = $Res->Fetch())
+		$arResult['USERS'][$user['ID']]['LOGIN'] = $user['LOGIN'];
+
+	$uids = array_keys($arResult['USERS']);
+
+	//найдем новости всех авторов нашего типа
+	$Res = CIBlockElement::GetList(false,
+	                               ['IBLOCK_ID'                               => $arParams['NEWS_IBLOCK_ID'],
+	                                'PROPERTY_' . $arParams['NEWS_LINK_CODE'] => $uids,
+	                                'ACTIVE'                                  => 'Y'],
+	                               false,
+	                               false,
+	                               ['NAME', 'DATE_ACTIVE_FROM', 'ID', 'PROPERTY_' . $arParams['NEWS_LINK_CODE']]);
+
+	if (!$Res->SelectedRowsCount()) //новостей нет
+	{
+		$this->abortResultCache();
+		return;
+	}
+
+	$my_news_ids = [];//список своих новостей
+
+	while ($item = $Res->Fetch()) //правильно решать через GetNextElement(), но Fetch() быстрее
+	{
+		//автор новости
+		$uid = $item['PROPERTY_' . $arParams['NEWS_LINK_CODE'] . '_VALUE'];
+		//айди новости
+		$id = intval($item['ID']);
+
+		if ($uid == $my_id) //собираем айдишники своих новостей
+			$my_news_ids[] = $id;
+
+		//пропускаем свои новости
+		if (in_array($id, $my_news_ids))
+		{
+			unset($arResult['NEWS'][$id]); //и зачищаем выдачу
+			continue;
+		}
+
+		//избавляемся от дублей выдачи (GetNextElement()->GetProperties() не выдает дублей, но медленный)
+		if (empty($arResult['NEWS'][$id]))
+		{
+			$arResult['NEWS'][$id]['NAME'] = $item['NAME'];
+			$arResult['NEWS'][$id]['DATE'] = $item['DATE_ACTIVE_FROM'];
+
+		}
+
+		//автору добавляем ссылку на его новость
+		$arResult['USERS'][$uid]['NEWS_ID'][] = $id;
+	}
+
+	//не забываем зачистить себя
+	unset($arResult['USERS'][$my_id]);
+
+	//сохраняем количество новостей
+	$arResult['COUNT'] = count($arResult['NEWS']);
+	$this->setResultCacheKeys('COUNT');
+
+	$this->includeComponentTemplate();
 }
-$this->includeComponentTemplate();	
-?>
+
+$APPLICATION->SetTitle(GetMessage("NEWS_COUNT") . $arResult['COUNT']);

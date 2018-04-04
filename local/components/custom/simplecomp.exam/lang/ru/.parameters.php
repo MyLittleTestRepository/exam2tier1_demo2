@@ -1,3 +1,5 @@
 <?
-$MESS["SIMPLECOMP_EXAM2_CAT_IBLOCK_ID"] = "ID инфоблока с каталогом товаров";
+$MESS["NEWS_IBLOCK_ID"] = "ID информационного блока с новостями";
+$MESS["NEWS_LINK_CODE"] = "Код свойства привязки";
+$MESS["UF_PROP_CODE"] = "Код пользовательского свойства";
 ?>
