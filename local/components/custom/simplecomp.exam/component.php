@@ -72,9 +72,9 @@ if ($this->startResultCache(false, $my_id))
 
 	//найдем новости всех авторов нашего типа
 	$Res = CIBlockElement::GetList(false,
-	                               ['IBLOCK_ID'                               => $arParams['NEWS_IBLOCK_ID'],
+	                               ['IBLOCK_ID' => $arParams['NEWS_IBLOCK_ID'],
 	                                'PROPERTY_' . $arParams['NEWS_LINK_CODE'] => $uids,
-	                                'ACTIVE'                                  => 'Y'],
+	                                'ACTIVE' => 'Y'],
 	                               false,
 	                               false,
 	                               ['NAME', 'DATE_ACTIVE_FROM', 'ID', 'PROPERTY_' . $arParams['NEWS_LINK_CODE']]);
@@ -123,7 +123,21 @@ if ($this->startResultCache(false, $my_id))
 	$arResult['COUNT'] = count($arResult['NEWS']);
 	$this->setResultCacheKeys('COUNT');
 
+	//получаем тип инфоблока для контектного меню
+	$arResult['IBLOCK_TYPE']=CIBlock::GetByID($arParams['NEWS_IBLOCK_ID'])->Fetch()['IBLOCK_TYPE_ID'];
+	$this->setResultCacheKeys('IBLOCK_TYPE');
+
 	$this->includeComponentTemplate();
 }
 
+//пункт в контекстном меню
+if ($APPLICATION->GetShowIncludeAreas())
+{
+	$this->AddIncludeAreaIcons([["TITLE"          => GetMessage("IB_MENU"),
+	                             "URL"            => '/bitrix/admin/iblock_element_admin.php?IBLOCK_ID='.$arParams['NEWS_IBLOCK_ID'].'&type='.$arResult['IBLOCK_TYPE'],
+	                             "IN_PARAMS_MENU" => true,
+	                             "IN_MENU"        => false,]]);
+}
+
+//заголовок
 $APPLICATION->SetTitle(GetMessage("NEWS_COUNT") . $arResult['COUNT']);
